@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<title>three.js webgl - loaders - MMD loader</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	<link type="text/css" rel="stylesheet" href="main.css">
+	<style>
+		body {
+			background-color: #fff;
+			color: #444;
+		}
+
+		a {
+			color: #08f;
+		}
+	</style>
+</head>
+
+<body>
+	<div id="info"></div>
+
+	<script src="js/libs/ammo.wasm.js"></script>
+	<script src="scoreoutputer.min.js"></script>
+	<script type="text/javascript" src="model_location.json"></script>
+	<script type="text/javascript" src="javascrip.js"></script>
+	<script>
+		var so = new ScoreOutputer("110598095");
+		so.installCSS(function () {
+			so.addChild("繪製出 5 個畫面", 1, true);
+			so.addChild("回答問題", 1, false);
+			so.addChild("可按鍵選擇上 / 下一隻角色", 1, false);
+			so.addChild("讀取作業 2 儲存的座標點在眼睛上繪製出分割線", 1, false);
+			so.addChild("可選擇當下控制哪個虹膜", 1, false);
+			so.addChild("按滑鼠左鍵控制虹膜移動，右鍵停止", 2, false);
+			so.addChild("複製參數至對應目標參數", 2, false);
+			so.addChild("可儲存虹膜轉動角度", 1, false);
+
+			so.renderModal(
+				document.body,
+				'rgba(100,45,58,1)',
+				'white',
+				'15pt',
+				'15px',
+				dialogTitle = "自我評分表"
+			);
+
+			so.installDownloadBtn();
+
+			so.renderBtn(
+				document.querySelector("#info"),
+				"開啟自評表"
+			);
+		});
+	</script>
+	<script type="module">
+
+		import * as THREE from './build/three.module.js';
+		import { GUI } from './jsm/libs/dat.gui.module.js';
+		import { OrbitControls } from './jsm/controls/OrbitControls.js';
+		import { OutlineEffect } from './jsm/effects/OutlineEffect.js';
+		import { MMDLoader } from './jsm/loaders/MMDLoader.js';
+		import { MMDAnimationHelper } from './jsm/animation/MMDAnimationHelper.js';
+
+		let scene, renderer, effect;
+		let mesh, helper;
+		let SCREEN_WIDTH = window.innerWidth;
+		let SCREEN_HEIGHT = window.innerHeight;
+		let aspect = SCREEN_WIDTH / SCREEN_HEIGHT;
+		let frustumSize = 3.5;
+		let frustumSize1 = 0.8; //0.8
+		let px = [-0.5, 0.5];
+		let camera, camera2, camera3, camera4, camera5;
+		var eye_num = 0, fir = 0;
+
+		const material_y = new THREE.LineBasicMaterial({color: 0x00ff00});
+		const material_x = new THREE.LineBasicMaterial({color: 0xff0000});
+		const line_x = [];
+		const line_y = [];
+		const line_name = [];
+		line_name[0] = ["line", "line1", "line2", "line3", "line4", "line5", "line6", "line7", "line8", "line9", "line10", "line11", "line12", "line13"];
+		line_name[1] = ["lin", "lin1", "lin2", "lin3", "lin4", "lin5", "lin6", "lin7", "lin8", "lin9", "lin10", "lin11", "lin12", "lin13"];
+		var eye_bone = [];
+		eye_bone[0] = [88, 86];
+		eye_bone[1] = [51, 49];
+		eye_bone[2] = [13, 11];
+
+		var eye_bone_limit = [];
+		eye_bone_limit[0] = new Array();
+		eye_bone_limit[0].push([0.13, -0.23, 0.15, -0.2]);
+		eye_bone_limit[0].push([0.23, -0.13, 0.15, -0.2]);
+		eye_bone_limit[1] = new Array();
+		eye_bone_limit[1].push([0.17, -0.3, 0.31, -0.21]);
+		eye_bone_limit[1].push([0.3, -0.13, 0.15, -0.2]);
+		eye_bone_limit[2] = new Array();
+		eye_bone_limit[2].push([0.15, -0.39, 0.23, -0.33]);
+		eye_bone_limit[2].push([0.39, -0.15, 0.23, -0.33]);
+
+		var count = 0;
+		var eye = 0;
+		var eye_x = 0, eye_y = 0;
+		var x = 0, y = 0;
+
+		line_x[0] = new Array();
+		line_x[1] = new Array();
+		line_y[0] = new Array();
+		line_y[1] = new Array();
+
+		let model_data = new Array();
+		for(var n = 0; n < 3 ; n++){
+			model_data[n] = new Array();
+		}
+
+		let model_position_main_y = [];		
+		let model_position_y = [];
+
+		Ammo().then(function (AmmoLib) {
+			Ammo = AmmoLib;
+			init();
+			animate();
+		});
+
+		function init() {
+			
+			var mydata = JSON.parse(data);
+			
+			for(var i = 0; i < 3; i++){
+				model_data[i].push(mydata[0].modellist[i].line_locationx_1)
+				model_data[i].push(mydata[0].modellist[i].line_locationy_1)
+				model_data[i].push(mydata[0].modellist[i].line_locationx_2)
+				model_data[i].push(mydata[0].modellist[i].line_locationy_2)
+				model_data[i].push(mydata[0].modellist[i].line_locationx_3)
+				model_data[i].push(mydata[0].modellist[i].line_locationy_3)
+				model_data[i].push(mydata[0].modellist[i].line_locationx_4)
+				model_data[i].push(mydata[0].modellist[i].line_locationy_4)
+				mydata[0].modellist[i].Right_X_positive_angle = eye_bone_limit[i][0][0];
+				mydata[0].modellist[i].Right_X_negative_angle = eye_bone_limit[i][0][1];
+				mydata[0].modellist[i].Right_Y_positive_angle = eye_bone_limit[i][0][2];
+				mydata[0].modellist[i].Right_Y_negative_angle = eye_bone_limit[i][0][3];
+				mydata[0].modellist[i].Left_X_positive_angle = eye_bone_limit[i][1][0];
+				mydata[0].modellist[i].Left_X_negative_angle = eye_bone_limit[i][1][1];
+				mydata[0].modellist[i].Left_Y_positive_angle = eye_bone_limit[i][1][2];
+				mydata[0].modellist[i].Left_Y_negative_angle = eye_bone_limit[i][1][3];
+			}
+			console.log(mydata[0]);
+			var model_num = 0;
+			model_position_main_y.push(8.25);
+			model_position_main_y.push(5.4);
+			model_position_main_y.push(4.5);
+
+			model_position_y.push(8.05);
+			model_position_y.push(5.5);
+			model_position_y.push(4.55);
+			
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			camera = new THREE.OrthographicCamera(0.5 * frustumSize1 * aspect / - 2, 0.5 * frustumSize1 * aspect / 2, frustumSize1 / 2, frustumSize1 / - 2, 0.1, 1000);
+			camera2 = new THREE.OrthographicCamera(0.25 * frustumSize * aspect / - 2, 0.25 * frustumSize * aspect / 2, 0.5 * frustumSize / 2, 0.5 * frustumSize / - 2, 0.1, 1000);
+			camera3 = new THREE.OrthographicCamera(0.25 * frustumSize * aspect / - 2, 0.25 * frustumSize * aspect / 2, 0.5 * frustumSize / 2, 0.5 * frustumSize / - 2, 0.1, 1000);
+			camera4 = new THREE.OrthographicCamera(0.25 * frustumSize * aspect / - 2, 0.25 * frustumSize * aspect / 2, 0.5 * frustumSize / 2, 0.5 * frustumSize / - 2, 0.1, 1000);
+			camera5 = new THREE.OrthographicCamera(0.25 * frustumSize * aspect / - 2, 0.25 * frustumSize * aspect / 2, 0.5 * frustumSize / 2, 0.5 * frustumSize / - 2, 0.1, 1000);
+			camera.position.z = 30;
+			camera2.position.z = 30;
+			camera3.position.z = 30;
+			camera4.position.z = 30;
+			camera5.position.z = 30;
+			camera.position.x = px[0];
+
+			camera.position.y = model_position_main_y[model_num];
+			camera2.position.y = model_position_y[model_num];
+			camera3.position.y = model_position_y[model_num];
+			camera4.position.y = model_position_y[model_num];
+			camera5.position.y = model_position_y[model_num];
+
+			
+			const loader = new MMDLoader();
+			const modelFile = ['models/mmd/kizunaai/kizunaai.pmx',
+								'models/mmd/『天宮こころ(Kokoro Amamiya)』/『天宮こころ(Kokoro Amamiya)』.pmx',
+								'models/mmd/るいのれ式物述有栖_配布用フォルダ/物述有栖.pmx'
+			];
+
+			scene = new THREE.Scene();
+			const ambient = new THREE.AmbientLight(0x666666);
+			scene.add(ambient);
+
+			const directionalLight = new THREE.DirectionalLight(0x887766);
+			directionalLight.position.set(- 1, 1, 1).normalize();
+			scene.add(directionalLight);
+
+
+			renderer = new THREE.WebGLRenderer({ antialias: true });
+			renderer.setPixelRatio(window.devicePixelRatio);
+			renderer.setSize(window.innerWidth, window.innerHeight);
+			container.appendChild(renderer.domElement);
+			renderer.autoClear = false;
+			effect = new OutlineEffect(renderer);
+
+			function onProgress(xhr) {
+				if (xhr.lengthComputable) {
+					const percentComplete = xhr.loaded / xhr.total * 100;
+					console.log(Math.round(percentComplete, 2) + '% downloaded');
+				}
+			}
+
+			var body = document.body;
+			function keydown(e){
+			
+				if(e.key == '1'){
+
+					if(eye_num != 0){
+						eye_num--;
+					}
+
+					for(var cc = 0; cc < line_name[0].length; cc++){
+						scene.remove(scene.getObjectByName(line_name[0][cc]));
+						scene.remove(scene.getObjectByName(line_name[1][cc]));
+					}
+
+					if(eye_num % 2 == 0){
+						drawline_x(0, model_data[model_num][2], model_data[model_num][6]);
+						drawline_y(1, model_data[model_num][1], model_data[model_num][5]);
+					}else{
+						drawline_x(1, model_data[model_num][2], model_data[model_num][6]);
+						drawline_y(0, model_data[model_num][1], model_data[model_num][5]);
+					}
+
+					camera.position.x = px[eye_num % 2];					
+				}
+				if(e.key == '2'){
+
+					if(eye_num != 7){
+						eye_num++;
+					}
+
+					for(var cc = 0; cc < line_name[0].length; cc++){
+						scene.remove(scene.getObjectByName(line_name[0][cc]));
+						scene.remove(scene.getObjectByName(line_name[1][cc]));
+					}
+
+					if(eye_num % 2 == 0){
+						drawline_x(0, model_data[model_num][2], model_data[model_num][6]);
+						drawline_y(1, model_data[model_num][1], model_data[model_num][5]);
+					}else{
+						drawline_x(1, model_data[model_num][2], model_data[model_num][6]);
+						drawline_y(0, model_data[model_num][1], model_data[model_num][5]);
+					}
+
+					camera.position.x = px[eye_num % 2];
+				}
+				if(e.key == 'a'){
+
+					if(model_num != 0){
+						model_num--;
+					}
+
+					for(var cc = 0; cc < line_name[0].length; cc++){
+						scene.remove(scene.getObjectByName(line_name[0][cc]));
+						scene.remove(scene.getObjectByName(line_name[1][cc]));
+					}
+
+					drawline_x(0, model_data[model_num][2], model_data[model_num][6]);
+					drawline_y(1, model_data[model_num][1], model_data[model_num][5]);
+
+					eye_num = 0;
+
+					camera.position.y = model_position_main_y[model_num];
+					camera2.position.y = model_position_y[model_num];
+					camera3.position.y = model_position_y[model_num];
+					camera4.position.y = model_position_y[model_num];
+					camera5.position.y = model_position_y[model_num];
+					scene.remove(mesh);
+					load_model();
+				}
+				if(e.key == 'd'){
+
+					if(model_num != 2){
+						model_num++;
+					}
+
+					for(var cc = 0; cc < line_name[0].length; cc++){
+						scene.remove(scene.getObjectByName(line_name[0][cc]));
+						scene.remove(scene.getObjectByName(line_name[1][cc]));
+					}
+					
+					drawline_x(0, model_data[model_num][2], model_data[model_num][6]);
+					drawline_y(1, model_data[model_num][1], model_data[model_num][5]);
+
+					eye_num = 0;
+
+					camera.position.y = model_position_main_y[model_num];
+					camera2.position.y = model_position_y[model_num];
+					camera3.position.y = model_position_y[model_num];
+					camera4.position.y = model_position_y[model_num];
+					camera5.position.y = model_position_y[model_num];
+					scene.remove(mesh);
+					load_model();		
+				}
+				if(e.key == 'q'){
+					eye_num++;
+					for(var cc = 0; cc < line_name[0].length; cc++){
+						scene.remove(scene.getObjectByName(line_name[0][cc]));
+						scene.remove(scene.getObjectByName(line_name[1][cc]));
+					}
+
+					if(eye_num % 2 == 0){
+						drawline_x(0, model_data[model_num][2], model_data[model_num][6]);
+						drawline_y(1, model_data[model_num][1], model_data[model_num][5]);
+					}else{
+						drawline_x(1, model_data[model_num][2], model_data[model_num][6]);
+						drawline_y(0, model_data[model_num][1], model_data[model_num][5]);
+					}
+					mesh.skeleton.bones[eye_bone[model_num][eye_num % 2]].rotation.x =  y;
+					mesh.skeleton.bones[eye_bone[model_num][eye_num % 2]].rotation.y =  -x;
+				}
+				if(e.key == 's'){
+						function saveText(text, filename){
+							var a = document.createElement('a');
+							a.setAttribute('href', 'data:text/plain;charset=utf-8,'+encodeURIComponent(text));
+							a.setAttribute('download', filename);
+							a.click()
+						}
+						saveText( JSON.stringify(mydata), "model_data.json" );
+				}
+			}
+			
+			function getPosition(e){
+				var mouseWorld = new THREE.Vector3();
+				const { left, top, width, height } = e.currentTarget.getBoundingClientRect();
+				mouseWorld.set(
+					((e.clientX - left + 1) / width) * 2 - 1,
+					-((e.clientY - top + 1) / height) * 2 + 1,
+					25
+				);
+				mouseWorld.unproject(camera);
+
+				document.oncontextmenu = rightClick;
+				function rightClick(clickEvent) {
+					clickEvent.preventDefault();
+					eye = 0;
+				}
+
+				document.onclick = function (x) {
+					eye = 1;
+					eye_x = e.clientX - width;
+					eye_y = e.clientY - height;
+				}
+
+				if(eye == 1){
+					x = (event.clientX - width - eye_x) * 0.01;
+					y = (event.clientY - height - eye_y) * 0.01;
+					if(x > eye_bone_limit[model_num][eye_num % 2][0]){
+						x = eye_bone_limit[model_num][eye_num % 2][0];
+					}
+					if(x < eye_bone_limit[model_num][eye_num % 2][1]){
+						x = eye_bone_limit[model_num][eye_num % 2][1];
+					}
+					if(y > eye_bone_limit[model_num][eye_num % 2][2]){
+						y = eye_bone_limit[model_num][eye_num % 2][2];
+					}
+					if(y < eye_bone_limit[model_num][eye_num % 2][3]){
+						y = eye_bone_limit[model_num][eye_num % 2][3];
+					}
+
+					mesh.skeleton.bones[eye_bone[model_num][eye_num % 2]].rotation.x =  y;
+					mesh.skeleton.bones[eye_bone[model_num][eye_num % 2]].rotation.y =  x;
+				}
+			}
+
+			helper = new MMDAnimationHelper();
+			
+			load_model();				
+			drawline_x(0, model_data[model_num][2], model_data[model_num][6]);
+			drawline_y(1, model_data[model_num][1], model_data[model_num][5]);
+
+			function drawline_x(b, x1, x2){
+				if(b == 0){
+					x1 = x1 * -1;
+					x2 = x2 * -1;
+				}
+				var x_limit = (x2 - x1) / 8;
+				var points = [];
+				
+				for(var i = 0; i < 9; i++){
+					points = [];
+					points.push(new THREE.Vector3(x1 + x_limit * i, 0 , 20));
+					points.push(new THREE.Vector3(x1 + x_limit * i, 10 , 20));
+					const geometry = new THREE.BufferGeometry().setFromPoints(points);
+					line_x[b][i] = new THREE.Line(geometry, material_x);
+					line_x[b][i].name = line_name[b][count];
+					scene.add(line_x[b][i]);
+					count++;
+				}
+			}
+
+			function drawline_y(b, y1, y2){
+				var np = 1;
+				if(b == 0){
+					np = np * -1;
+				}
+				var y_limit = (y2 - y1) / 4;
+				var points = [];
+				for(var i = 0; i < 5; i++){
+					points = [];
+					points.push(new THREE.Vector3(0, y1 +  y_limit * i, 20));
+					points.push(new THREE.Vector3(0 - np, y1 + y_limit * i, 20));
+					const geometry = new THREE.BufferGeometry().setFromPoints(points);
+					line_y[b][i] = new THREE.Line(geometry, material_y);
+					line_y[b][i].name = line_name[b][count];
+					scene.add(line_y[b][i]);
+					count++;
+				}
+				count = 0;
+			}
+
+			function load_model(){
+				loader.load(modelFile[model_num], function (object) {
+					mesh = object;
+					mesh.position.y = - 10;
+					scene.add(mesh);
+				}, onProgress, null);
+			}
+
+			body.addEventListener('mousemove', getPosition, false);
+			body.addEventListener('keydown', keydown, false);
+			window.addEventListener('resize', onWindowResize);	
+		}
+
+		function onWindowResize() {
+
+			SCREEN_WIDTH = window.innerWidth;
+			SCREEN_HEIGHT = window.innerHeight;
+			aspect = SCREEN_WIDTH / SCREEN_HEIGHT;
+
+			effect.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+
+			camera.left = 0.5 * frustumSize * aspect / - 2;
+			camera.right = 0.5 * frustumSize * aspect / 2;
+			camera.top = frustumSize / 2;
+			camera.bottom = - frustumSize / 2;
+			camera.updateProjectionMatrix();
+
+			camera2.left = 0.25 * frustumSize * aspect / - 2;
+			camera2.right = 0.25 * frustumSize * aspect / 2;
+			camera2.top = 0.5 * frustumSize / 2;
+			camera2.bottom = - 0.5 * frustumSize / 2;
+			camera2.updateProjectionMatrix();
+
+			camera3.left = 0.25 * frustumSize * aspect / - 2;
+			camera3.right = 0.25 * frustumSize * aspect / 2;
+			camera3.top = 0.5 * frustumSize / 2;
+			camera3.bottom = - 0.5 * frustumSize / 2;
+			camera3.updateProjectionMatrix();
+
+			camera4.left = 0.25 * frustumSize * aspect / - 2;
+			camera4.right = 0.25 * frustumSize * aspect / 2;
+			camera4.top = 0.5 * frustumSize / 2;
+			camera4.bottom = - 0.5 * frustumSize / 2;
+			camera4.updateProjectionMatrix();
+
+			camera5.left = 0.25 * frustumSize * aspect / - 2;
+			camera5.right = 0.25 * frustumSize * aspect / 2;
+			camera5.top = 0.5 * frustumSize / 2;
+			camera5.bottom = - 0.5 * frustumSize / 2;
+			camera5.updateProjectionMatrix();
+		}
+
+		function animate() {
+			requestAnimationFrame(animate);
+			render();
+		}
+
+		function render() {
+			effect.setViewport(0, 0, SCREEN_WIDTH / 2, SCREEN_HEIGHT);
+			effect.render(scene, camera);
+
+			effect.setViewport(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 2);
+			effect.render(scene, camera2);
+
+			effect.setViewport(SCREEN_WIDTH / 2 + SCREEN_WIDTH / 4, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 2);
+			effect.render(scene, camera3);
+
+			effect.setViewport(SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 2);
+			effect.render(scene, camera4);
+
+			effect.setViewport(SCREEN_WIDTH / 2 + SCREEN_WIDTH / 4, 0, SCREEN_WIDTH / 4, SCREEN_HEIGHT / 2);
+			effect.render(scene, camera5);
+		}
+	</script>
+
+</body>
+
+</html>
